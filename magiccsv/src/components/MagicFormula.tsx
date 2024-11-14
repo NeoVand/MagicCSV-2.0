@@ -264,14 +264,9 @@ const handleAttachmentSelect = async (event: React.ChangeEvent<HTMLInputElement>
     const text = await file.text();
     const processedText = processText(text);
     
-    const input = mentionsInputRef.current?.querySelector('textarea');
-    if (!input) return;
-    
-    const cursorPosition = input.selectionStart || 0;
-    const before = promptTemplate.substring(0, cursorPosition);
-    const after = promptTemplate.substring(cursorPosition);
-    
-    handlePromptChange(null, before + processedText + after);
+    // Always append to the end with a new line
+    const newText = promptTemplate + (promptTemplate ? '\n' : '') + processedText;
+    handlePromptChange(null, newText);
     
     event.target.value = '';
   } catch (error) {
@@ -471,21 +466,14 @@ const handleAttachmentSelect = async (event: React.ChangeEvent<HTMLInputElement>
                 e.preventDefault();
                 e.stopPropagation();
                 const text = e.clipboardData.getData('text');
-                const processedText = text.replace(/\[@(\w+)\]/g, (match, columnName) => {
-                  if (columnHeaders.includes(columnName)) {
-                    return `@[${columnName}](${columnName})`;
-                  }
-                  return match;
-                });
+                const processedText = processText(text);
                 
-                const input = e.target as HTMLTextAreaElement;
-                const cursorPosition = input.selectionStart || 0;
-                const before = promptTemplate.substring(0, cursorPosition);
-                const after = promptTemplate.substring(cursorPosition);
+                // Always append to the end with a new line
+                const newText = promptTemplate + (promptTemplate ? '\n' : '') + processedText;
                 
                 // Use requestAnimationFrame to ensure we're not conflicting with React's updates
                 requestAnimationFrame(() => {
-                  handlePromptChange(null, before + processedText + after);
+                  handlePromptChange(null, newText);
                 });
               }}
             >
