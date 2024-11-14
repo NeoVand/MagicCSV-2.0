@@ -1,0 +1,44 @@
+# Node modules (already in original but should be first)
+node_modules/
+
+# TypeScript build info (from tsconfig files)
+/node_modules/.tmp/tsconfig.app.tsbuildinfo
+/node_modules/.tmp/tsconfig.node.tsbuildinfo
+
+# Vite specific
+.vite/
+vite.config.ts.timestamp-*
+
+# Environment files (not currently in project but recommended)
+.env*
+!.env.example
+
+# Editor/IDE
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# Testing
+/coverage/
+/cypress/videos/
+/cypress/screenshots/
+
+# Production build
+/dist/
+/build/
+/out/
+
+# Misc
+.DS_Store
+*.pem
+.vercel
+.netlify
+
+# electron files
+release/
+dist/
+build/

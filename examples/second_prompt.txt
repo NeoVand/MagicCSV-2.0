@@ -1,0 +1,8 @@
+Given the decision made  [@Decision] for internship candidate named  [@name] with scores:
+Coding score: [@coding_score]
+System score: [@system_score]
+Culture fit:  [@culture_fit]
+Behavioral score: [@behavioral]
+Presentation score: [@presentation]
+write a one-liner acceptance/rejection letter and based on the scores praise them if they did good at something.
+Only output the one-liner message and NOTHING ELSE.
