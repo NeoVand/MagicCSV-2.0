@@ -50,9 +50,9 @@ const DataGridComponent = forwardRef<any, DataGridProps>(
 
       return {
         whiteSpace: isExpanded ? 'normal' : 'nowrap',
-        lineHeight: '1',
-        paddingTop: '4px',
-        paddingBottom: '4px',
+        lineHeight: '2',
+        paddingTop: '5px',
+        paddingBottom: '2px',
         height: isExpanded ? 'auto' : '100%',
         maxHeight: isExpanded ? 'none' : '100%',
         overflow: 'hidden',
