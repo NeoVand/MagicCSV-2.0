@@ -2,20 +2,25 @@ import React, { useState, forwardRef, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.min.css';
+import SheetSelector from './SheetSelector';
+import { MagicTableSheet } from './FileUpload';
 
-interface DataGridProps {
+interface DataGridComponentProps {
   rowData: any[];
   columnDefs: any[];
-  onRowSelectionChanged?: (selectedIndices: number[]) => void;
-  onCellValueChanged?: (event: any) => void;
-  onColumnHeaderChanged?: (oldName: string, newName: string) => void;
-  onHeaderCheckboxChange?: (columnName: string, checked: boolean) => void;
-  selectedColumn?: string | null;
+  onRowSelectionChanged: (selectedRows: number[]) => void;
+  onCellValueChanged: (event: any) => void;
+  onColumnHeaderChanged: (oldName: string, newName: string) => void;
+  onHeaderCheckboxChange: (columnName: string, checked: boolean) => void;
+  selectedColumn: string | null;
   themeMode: 'light' | 'dark';
+  sheets: MagicTableSheet[];
+  activeSheetIndex: number;
+  onSheetChange: (index: number) => void;
 }
 
-const DataGridComponent = forwardRef<any, DataGridProps>(
-  ({ rowData, columnDefs, onRowSelectionChanged, onCellValueChanged, onColumnHeaderChanged, onHeaderCheckboxChange, selectedColumn, themeMode }, ref) => {
+const DataGridComponent = forwardRef<any, DataGridComponentProps>(
+  ({ rowData, columnDefs, onRowSelectionChanged, onCellValueChanged, onColumnHeaderChanged, onHeaderCheckboxChange, selectedColumn, themeMode, sheets, activeSheetIndex, onSheetChange }, ref) => {
     const [expandedCell, setExpandedCell] = useState<string | null>(null);
 
     
@@ -133,13 +138,12 @@ const DataGridComponent = forwardRef<any, DataGridProps>(
   }
 );
 
-// Custom Editable Header Component
+// Keep the EditableHeader component in the same file
 const EditableHeader = (props: any) => {
   const [isEditing, setIsEditing] = useState(false);
   const [headerName, setHeaderName] = useState(props.column.colDef.headerName);
   const [isChecked, setIsChecked] = useState(false);
 
-  // Update checkbox state when selected column changes
   useEffect(() => {
     const isSelected = props.column.colDef.headerComponentParams.selectedColumn === props.column.colId;
     setIsChecked(isSelected);

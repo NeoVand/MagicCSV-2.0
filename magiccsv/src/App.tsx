@@ -36,6 +36,9 @@ import NewCSVDialog from './components/NewCSVDialog';
 import MagicIcon from './components/Magicicon';
 import { RowNode } from 'ag-grid-community';
 import { PromptProcessor } from './utils/PromptProcessor';
+import { MagicTableSheet } from './components/FileUpload';
+import SheetSelector from './components/SheetSelector';
+import * as XLSX from 'xlsx';
 
 interface CellEdit {
   rowId: string;
@@ -74,7 +77,8 @@ function App() {
   const [newCSVDialogOpen, setNewCSVDialogOpen] = useState<boolean>(false);
   const [selectedColumn, setSelectedColumn] = useState<string | null>(null);
   const [cellEditHistory, setCellEditHistory] = useState<CellEdit[]>([]);
-
+  const [sheets, setSheets] = useState<MagicTableSheet[]>([]);
+  const [activeSheetIndex, setActiveSheetIndex] = useState<number>(0);
 
   const gridRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -102,23 +106,17 @@ function App() {
   const columnHeaders = columnDefs.map((col) => col.field);
 
   // Handler for file selection
-  const handleFileSelected = (data: any[], columns: string[]) => {
-    // Assign unique ids to each row
-    const dataWithIds = data.map((row, index) => {
-      const processedRow = { ...row };
-      // Convert any boolean values to strings
-      Object.keys(processedRow).forEach(key => {
-        if (typeof processedRow[key] === 'boolean') {
-          processedRow[key] = processedRow[key].toString();
-        }
-      });
-      return { ...processedRow, __rowId: index.toString() };
-    });
+  const handleFileSelected = (newSheets: MagicTableSheet[]) => {
+    setSheets(newSheets);
+    setActiveSheetIndex(0);
     
-    setOriginalRowData(dataWithIds);
-    setRowData(dataWithIds);
-    setColumnDefs(
-      columns.map((col: string, index: number) => ({
+    if (newSheets.length > 0) {
+      const firstSheet = newSheets[0];
+      const columns = Object.keys(firstSheet.rows[0] || {}).filter(key => key !== '__rowId');
+      
+      setOriginalRowData(firstSheet.rows);
+      setRowData(firstSheet.rows);
+      setColumnDefs(columns.map((col: string, index: number) => ({
         field: col,
         headerName: col,
         width: 200,
@@ -135,29 +133,83 @@ function App() {
         valueFormatter: (params: any) => {
           return params.value != null ? String(params.value) : '';
         }
-      }))
-    );
-    setColumnHistory([]);
-    setSelectedRowIndices([]);
-    setRangeInput('All');
+      })));
+    }
   };
 
   const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files && files.length > 0) {
       const file = files[0];
-      // Parse the CSV file
-      Papa.parse(file, {
-        header: true,
-        dynamicTyping: true,
-        complete: (results) => {
-          const data = results.data;
-          const columns = results.meta.fields || [];
-          handleFileSelected(data, columns);
-          // Reset the file input value so the same file can be selected again
-          event.target.value = '';
-        },
-      });
+      const lowerName = file.name.toLowerCase();
+
+      if (lowerName.endsWith('.csv')) {
+        // Parse CSV file
+        Papa.parse(file, {
+          header: true,
+          dynamicTyping: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            const data = results.data.map((row: any, index: number) => ({
+              ...row,
+              __rowId: index.toString()
+            }));
+            handleFileSelected([{
+              name: file.name.replace('.csv', ''),
+              rows: data
+            }]);
+            event.target.value = '';
+          },
+          error: (error) => {
+            console.error('Error parsing CSV:', error);
+            showSnackbar('Error parsing CSV file');
+          }
+        });
+      } else if (lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')) {
+        // Parse Excel file
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const data = new Uint8Array(e.target?.result as ArrayBuffer);
+            const workbook = XLSX.read(data, { type: 'array' });
+
+            const allSheets: MagicTableSheet[] = workbook.SheetNames.map(sheetName => {
+              const worksheet = workbook.Sheets[sheetName];
+              const sheetData = XLSX.utils.sheet_to_json(worksheet, { 
+                header: 1,
+                blankrows: false
+              });
+
+              // Get headers from first row
+              const headers = sheetData[0] as string[];
+              
+              // Convert data to row objects
+              const rows = sheetData.slice(1).map((row: any, index: number) => {
+                const rowObj: Record<string, any> = { __rowId: index.toString() };
+                headers.forEach((header, i) => {
+                  rowObj[header] = row[i] || '';
+                });
+                return rowObj;
+              });
+
+              return {
+                name: sheetName,
+                rows: rows
+              };
+            });
+
+            handleFileSelected(allSheets);
+          } catch (error) {
+            console.error('Error parsing Excel file:', error);
+            showSnackbar('Error parsing Excel file');
+          }
+        };
+        reader.onerror = () => {
+          showSnackbar('Error reading file');
+        };
+        reader.readAsArrayBuffer(file);
+      }
+      event.target.value = '';
     }
   };
 
@@ -175,8 +227,16 @@ function App() {
     setNewCSVDialogOpen(false);
   };
 
-  const handleNewCSVCreate = (data: any[], columns: string[]) => {
-    handleFileSelected(data, columns);
+  const handleNewCSVCreate = (data: any[]) => {
+    const dataWithIds = data.map((row, index) => ({
+      ...row,
+      __rowId: index.toString()
+    }));
+    
+    handleFileSelected([{
+      name: 'New Sheet',
+      rows: dataWithIds
+    }]);
     setNewCSVDialogOpen(false);
   };
 
@@ -819,22 +879,54 @@ function App() {
       showSnackbar('No data available to export.');
       return;
     }
-
-    // Get ordered column fields from columnDefs
-    const orderedColumns = columnDefs.map((col) => col.field);
-
-    // Reorder the data according to columnDefs order
-    const orderedData = rowData.map((row) => {
-      const orderedRow: any = {};
-      orderedColumns.forEach((col) => {
-        orderedRow[col] = row[col];
+  
+    if (sheets.length > 1) {
+      // Export as Excel for multi-sheet data
+      const wb = XLSX.utils.book_new();
+      
+      sheets.forEach((sheet) => {
+        // Get ordered column fields from columnDefs for this sheet
+        const orderedColumns = columnDefs.map((col) => col.field);
+  
+        // Reorder the data according to columnDefs order
+        const orderedData = sheet.rows.map((row) => {
+          const orderedRow: any = {};
+          orderedColumns.forEach((col) => {
+            if (col !== '__rowId') { // Exclude the internal rowId from export
+              orderedRow[col] = row[col];
+            }
+          });
+          return orderedRow;
+        });
+  
+        // Create worksheet and add to workbook
+        const ws = XLSX.utils.json_to_sheet(orderedData);
+        XLSX.utils.book_append_sheet(wb, ws, sheet.name);
       });
-      return orderedRow;
-    });
-
-    const csv = Papa.unparse(orderedData);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    saveAs(blob, 'data_export.csv');
+  
+      // Generate Excel file
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      saveAs(blob, 'data_export.xlsx');
+    } else {
+      // Export as CSV for single sheet data
+      const orderedColumns = columnDefs.map((col) => col.field);
+  
+      // Reorder the data according to columnDefs order
+      const orderedData = rowData.map((row) => {
+        const orderedRow: any = {};
+        orderedColumns.forEach((col) => {
+          if (col !== '__rowId') { // Exclude the internal rowId from export
+            orderedRow[col] = row[col];
+          }
+        });
+        return orderedRow;
+      });
+  
+      const csv = Papa.unparse(orderedData);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      saveAs(blob, 'data_export.csv');
+    }
   };
 
   const handleHeaderCheckboxChange = (columnName: string, checked: boolean) => {
@@ -1048,6 +1140,34 @@ function App() {
     return columnName;
   };
 
+  // Add a new handler for sheet changes
+  const handleSheetChange = (index: number) => {
+    setActiveSheetIndex(index);
+    const newSheet = sheets[index];
+    const columns = Object.keys(newSheet.rows[0] || {}).filter(key => key !== '__rowId');
+    
+    setOriginalRowData(newSheet.rows);
+    setRowData(newSheet.rows);
+    setColumnDefs(columns.map((col: string, index: number) => ({
+      field: col,
+      headerName: col,
+      width: 200,
+      flex: 1,
+      checkboxSelection: index === 0,
+      headerCheckboxSelection: index === 0,
+      editable: true,
+      resizable: true,
+      cellRenderer: 'agTextCellRenderer',
+      cellEditor: 'agTextCellEditor',
+      cellEditorParams: {
+        useFormatter: true,
+      },
+      valueFormatter: (params: any) => {
+        return params.value != null ? String(params.value) : '';
+      }
+    })));
+  };
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -1074,7 +1194,7 @@ function App() {
             </IconButton>
             <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
               <MagicIcon size={28} />
-              MagicCSV
+              MagicTable
             </Typography>
             {/* Open CSV Button */}
             <Button
@@ -1083,7 +1203,7 @@ function App() {
               sx={{ mr: 1 }}
               startIcon={<OpenInBrowserIcon />}
             >
-              Open CSV
+              Open Table
             </Button>
             {/* New CSV Button */}
             <Button
@@ -1092,7 +1212,7 @@ function App() {
               sx={{ mr: 1 }}
               startIcon={<NoteAddIcon />}
             >
-              New CSV
+              New Table
             </Button>
             {/* Export Button */}
             <Button
@@ -1114,7 +1234,7 @@ function App() {
         {/* Hidden File Input */}
         <input
           type="file"
-          accept=".csv"
+          accept=".csv,.xls,.xlsx"
           style={{ display: 'none' }}
           ref={fileInputRef}
           onChange={handleFileInputChange}
@@ -1184,7 +1304,11 @@ function App() {
               onInsertColumnAfter={handleInsertColumnAfter}
               onRevert={handleRevert}
               canRevert={originalRowData.length > 0}
+              sheets={sheets}
+              activeSheetIndex={activeSheetIndex}
+              onSheetChange={handleSheetChange}
             />
+
             <DataGridComponent
               ref={gridRef}
               rowData={rowData}
@@ -1195,6 +1319,9 @@ function App() {
               onHeaderCheckboxChange={handleHeaderCheckboxChange}
               selectedColumn={selectedColumn}
               themeMode={mode}
+              sheets={sheets}
+              activeSheetIndex={activeSheetIndex}
+              onSheetChange={handleSheetChange}
             />
           </Container>
         </div>

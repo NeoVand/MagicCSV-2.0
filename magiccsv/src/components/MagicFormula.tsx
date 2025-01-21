@@ -16,8 +16,13 @@ import {
   KeyboardDoubleArrowDown as AddRowAfterIcon,
 } from '@mui/icons-material';
 import { Theme } from '@mui/material/styles';
+import { MagicTableSheet } from './FileUpload';
+import SheetSelector from './SheetSelector';
 
 interface MagicFormulaProps {
+  sheets: MagicTableSheet[];
+  activeSheetIndex: number;
+  onSheetChange: (index: number) => void;
   onProcess: (data: any) => void;
   onStop: () => void;
   onUndo: () => void;
@@ -222,6 +227,9 @@ const MagicFormula: React.FC<MagicFormulaProps> = ({
   selectedRows,
   onRevert,
   canRevert,
+  sheets,
+  activeSheetIndex,
+  onSheetChange,
 }) => {
   const [promptTemplate, setPromptTemplate] = React.useState('');
   const [startTime, setStartTime] = React.useState<number | null>(null);
@@ -553,48 +561,56 @@ const handleAttachmentSelect = async (event: React.ChangeEvent<HTMLInputElement>
       )}
       
       <Stack 
-        direction={{ xs: 'column', md: 'row' }} 
-        spacing={2} 
-        sx={{ 
-          mt: 2,
-          '& .MuiTextField-root': { flex: 1 },
-          alignItems: 'center'
-        }}
-      >
-        <Autocomplete
-          freeSolo
-          value={selectedColumn || ''}
-          onChange={(event, newValue) => {
-            onColumnSelect(newValue || '');
-          }}
-          onInputChange={(event, newValue) => {
-            onColumnSelect(newValue);
-          }}
-          options={columnHeaders}
-          ListboxProps={{
-            style: { maxHeight: '200px' }
-          }}
-          sx={{ flex: 1 }}
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              label="Column Name"
-              placeholder="Enter column name or select from headers..."
-              variant="outlined"
-            />
-          )}
-        />
-        <Tooltip title="Specify rows to process. Examples: 'All', '2, 10, 3', '2 to 6'" placement="top">
-          <TextField
-            label="Rows to Process"
-            placeholder="All"
-            value={rangeInput}
-            onChange={(e) => setRangeInput(e.target.value)}
-            disabled={isProcessing}
-            variant="outlined"
-          />
-        </Tooltip>
-      </Stack>
+  direction={{ xs: 'column', md: 'row' }} 
+  spacing={2} 
+  sx={{ 
+    mt: 2,
+    '& .MuiTextField-root': { flex: 1 },
+    alignItems: 'center'
+  }}
+>
+  <Autocomplete
+    freeSolo
+    value={selectedColumn || ''}
+    onChange={(event, newValue) => {
+      onColumnSelect(newValue || '');
+    }}
+    onInputChange={(event, newValue) => {
+      onColumnSelect(newValue);
+    }}
+    options={columnHeaders}
+    ListboxProps={{
+      style: { maxHeight: '200px' }
+    }}
+    sx={{ flex: 1 }}
+    renderInput={(params) => (
+      <TextField
+        {...params}
+        label="Column Name"
+        placeholder="Enter column name or select from headers..."
+        variant="outlined"
+      />
+    )}
+  />
+  {sheets.length > 1 && (
+    <SheetSelector
+      sheets={sheets}
+      activeIndex={activeSheetIndex}
+      onSheetChange={onSheetChange}
+      sx={{ minWidth: 120 }}
+    />
+  )}
+  <Tooltip title="Specify rows to process. Examples: 'All', '2, 10, 3', '2 to 6'" placement="top">
+    <TextField
+      label="Rows to Process"
+      placeholder="All"
+      value={rangeInput}
+      onChange={(e) => setRangeInput(e.target.value)}
+      disabled={isProcessing}
+      variant="outlined"
+    />
+  </Tooltip>
+</Stack>
       <div style={{ marginTop: 10, marginBottom: 0 }}>
       {isProcessing && (
           <Box sx={{ width: '100%', mb: 1, mt: 2}}>
